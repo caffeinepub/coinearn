@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { UserProfile } from "../declarations/backend.did";
 import { useActor } from "./useActor";
 import { useInternetIdentity } from "./useInternetIdentity";
 
@@ -39,6 +40,18 @@ export function useUserTransactions() {
   });
 }
 
+function applyCoins(
+  old: UserProfile | null | undefined,
+  earned: bigint,
+): UserProfile | null {
+  if (!old) return null;
+  return {
+    ...old,
+    coins: old.coins + earned,
+    totalEarned: old.totalEarned + earned,
+  };
+}
+
 export function useDailyCheckIn() {
   const { actor } = useActor();
   const qc = useQueryClient();
@@ -47,9 +60,23 @@ export function useDailyCheckIn() {
       if (!actor) throw new Error("Not connected");
       return actor.dailyCheckIn();
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["userProfile"] });
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+    onSuccess: (earned) => {
+      qc.setQueryData(
+        ["userProfile"],
+        (old: UserProfile | null | undefined) => {
+          const updated = applyCoins(old, earned);
+          if (!updated) return old;
+          return {
+            ...updated,
+            checkInStreak: (old?.checkInStreak ?? 0n) + 1n,
+            lastCheckIn: [BigInt(Date.now()) * 1_000_000n] as [bigint],
+          };
+        },
+      );
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["userProfile"] });
+        qc.invalidateQueries({ queryKey: ["transactions"] });
+      }, 2000);
     },
   });
 }
@@ -62,9 +89,22 @@ export function useWatchAd() {
       if (!actor) throw new Error("Not connected");
       return actor.watchAd();
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["userProfile"] });
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+    onSuccess: (earned) => {
+      qc.setQueryData(
+        ["userProfile"],
+        (old: UserProfile | null | undefined) => {
+          const updated = applyCoins(old, earned);
+          if (!updated) return old;
+          return {
+            ...updated,
+            adsWatchedToday: (old?.adsWatchedToday ?? 0n) + 1n,
+          };
+        },
+      );
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["userProfile"] });
+        qc.invalidateQueries({ queryKey: ["transactions"] });
+      }, 2000);
     },
   });
 }
@@ -77,9 +117,22 @@ export function useSpinWheel() {
       if (!actor) throw new Error("Not connected");
       return actor.spinWheel();
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["userProfile"] });
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+    onSuccess: (earned) => {
+      qc.setQueryData(
+        ["userProfile"],
+        (old: UserProfile | null | undefined) => {
+          const updated = applyCoins(old, earned);
+          if (!updated) return old;
+          return {
+            ...updated,
+            lastSpin: [BigInt(Date.now()) * 1_000_000n] as [bigint],
+          };
+        },
+      );
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["userProfile"] });
+        qc.invalidateQueries({ queryKey: ["transactions"] });
+      }, 2000);
     },
   });
 }
